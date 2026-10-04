@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PDF資料一覧（高画質版）</title>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  </script>
+
+  <style>
+    body {
+      font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    #pdf-list {
+      max-width: 1000px; /* 資料が見やすい最大幅 */
+      margin: 0 auto;
+    }
+    .pdf-container {
+      margin-bottom: 50px;
+      background: #fff;
+      padding: 15px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .pdf-title {
+      font-weight: bold;
+      margin-bottom: 15px;
+      padding-bottom: 5px;
+      border-bottom: 2px solid #007bff;
+      font-size: 1.2rem;
+    }
+    canvas {
+      display: block;
+      margin: 0 auto 20px auto;
+      border: 1px solid #eee;
+      /* 重要：CSSで幅を100%にすることで、スマホでもはみ出さず、高画質なデータを縮小表示させます */
+      max-width: 100%;
+      height: auto !important;
+    }
+    .loading-info {
+      text-align: center;
+      color: #666;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>PDF資料一覧</h1>
+  <div id="pdf-list"></div>
+
+  <script>
+    const pdfs = [
+      { name: "01_2026年度_第5回班長会議事録（9月分）.pdf", path: "pdf/01_2026年度_第5回班長会議事録（9月分）.pdf" },
+      { name: "02_2026年度_第5回班長会議事録（10月分）.pdf", path: "pdf/02_2026年度_第5回班長会議事録（10月分）.pdf" },
+    ];
+
+    const pdfListDiv = document.getElementById('pdf-list');
+
+    async function renderPDF(name, url) {
+      const container = document.createElement('div');
+      container.className = 'pdf-container';
+
+      const title = document.createElement('div');
+      title.className = 'pdf-title';
+      title.textContent = name;
+      container.appendChild(title);
+
+      try {
+        const loadingTask = pdfjsLib.getDocument(url);
+        const pdf = await loadingTask.promise;
+        
+        // 高画質化のための倍率設定
+        // 2.5〜3.0程度にすると、画像ベースの資料でも文字がクッキリします。
+        // 数値を上げすぎるとメモリを消費して動作が重くなるため、2.0〜3.0が推奨です。
+        const outputScale = window.devicePixelRatio || 2.0; 
+
+        for(let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+          const page = await pdf.getPage(pageNum);
+          
+          // 表示上のベースサイズを取得
+          const baseViewport = page.getViewport({ scale: 1.5 });
+          
+          // 実際の描画解像度を高める
+          const viewport = page.getViewport({ scale: outputScale > 2 ? outputScale : 2.5 });
+
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+
+          // Canvas自体の解像度（ドット数）を設定
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+
+          // CSSでの表示サイズ（見た目の大きさ）を設定
+          // これにより「高解像度で描いて、ギュッと縮めて表示する」ことになり、綺麗に見えます。
+          canvas.style.width = "100%"; 
+
+          container.appendChild(canvas);
+
+          const renderContext = {
+            canvasContext: context,
+            viewport: viewport,
+            // 画像の補間を高品質にする設定
+            intent: 'print'
+          };
+          
+          await page.render(renderContext).promise;
+        }
+      } catch (error) {
+        container.appendChild(document.createTextNode('PDFの読み込みに失敗しました。パスが正しいか確認してください。'));
+        console.error('Error loading PDF:', error);
+      }
+
+      pdfListDiv.appendChild(container);
+    }
+
+    (async () => {
+      for(const pdf of pdfs) {
+        await renderPDF(pdf.name, pdf.path);
+      }
+    })();
+  </script>
+
+</body>
+</html>
